@@ -1,9 +1,42 @@
-#include "InputHandler.h"
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image.h"
+#include "stb_image_write.h"
+#include <unistd.h>
+#include <stdlib.h>
+#include <time.h>
 
-#include <getopt.h> // POSIX = Not compatible with windows :'(
+enum { original = 0, share1, share2 };
 
+typedef struct imageHandler{
+    char* currentplace,* newplace ;
+    unsigned char * pixelPointer;
+    int width, height, channels;
+}imageHandler;
 
+#define getPointerChannel(image, x, y, channel) \
+    (image.pixelPointer + y*image.width*image.channels + x*image.channels + channel)
 
+#define getpixelchannel(image, x, y, channel) \
+    (*(getPointerChannel(image, x, y, channel)))
+
+#define getPixel(image, x, y) \
+    ((((int)getpixelchannel(image, x, y, 0)) << 24) \
+    |(((int)getpixelchannel(image, x, y, 1)) << 16) \
+    |(((int)getpixelchannel(image, x, y, 2)) << 8))
+
+#define getPixelRGBA(image, x, y) \
+    ((((int)getpixelchannel(image, x, y, 0)) << 24) \
+    |(((int)getpixelchannel(image, x, y, 1)) << 16) \
+    |(((int)getpixelchannel(image, x, y, 2)) << 8) \
+    |(((int)getpixelchannel(image, x, y, 3))))
+
+//TODO: Check if this name make any sense
+#define lerp(images, i, j, k) \
+    (lround(99.0 / 255.0 * getpixelchannel(images, i, j, k)))
+
+// TODO: Change function rand to another one
+#define randomUnity ((unsigned char) (rand() / (RAND_MAX / 10)))
 
 int main(int argc, const char *argv[], char *env_var_ptr[]){
 
@@ -14,11 +47,13 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
     for (int i = 0; *env_var_ptr != NULL; ++i) {
         printf ("\n%d: %s",i, *(env_var_ptr++));
     }
-    printf("\n");
+    printf("\n\n");
 #endif
-    char* imagesInputPlace[3];
     imageHandler images[3];
+    srand (time(NULL));
 
+
+//#TODO: Fix aguments not red because of other without value "-m -i ..."
     int option = 0;
 	while ((option = getopt(argc, (char *const *)argv, "m:r:i:o:hv")) != -1) {
         switch(option) {
@@ -28,10 +63,14 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 printf("\t\t\t\t%s\n",argv[optind]);
                 printf("\t\t\t\t%s\n",argv[optind+1]);
 #endif
-                for (int i = -1; i < 2; ++i) {
-                    imagesInputPlace[i+1] = (char *) argv[optind + i];
+                for (int i = -1; i < 2; i++) {
+                    images[i+1].currentplace = (char *) argv[optind + i];
+#ifdef DEBUG
+                    printf("image[%d].currentplace = %s\n", i+1, images[i+1].currentplace);
+#endif
                 }
-                images[0].place = imagesInputPlace[0];
+                printf("\n");
+                images[original].newplace = images[original].currentplace;
                 break;
             case 'o':
 #ifdef DEBUG
@@ -39,8 +78,12 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 printf("\t\t\t\t%s\n",argv[optind]);
 #endif
                 for (int i = -1; i < 1; i++) {
-                    images[i+2].place = (char *) argv[optind+i];
+                    images[i+2].newplace = (char *) argv[optind+i];
+#ifdef DEBUG
+                    printf("image[%d].newplace = %s\n", i+2, images[i+2].newplace);
+#endif
                 }
+                printf("\n");
                 break;
             case 'h':
                 printf("Message of help here\n");
@@ -58,7 +101,81 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
         }
     }
 
-    openImages(images, imagesInputPlace);
+    for (int i = 0; i < 3; i++) {
+        images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width
+                , &images[i].height, &images[i].channels, STBI_default);
+#ifdef DEBUG
+        printf("Image [%d] - height: %d  width:%d channels:%d\nFrom:%s\nTo:%s\n\n", i, images[i].height
+                , images[i].width, images[i].channels, images[i].currentplace, images[i].newplace);
+#endif
+    }
+    /*
+    int height = images[1].height, width = images[1].width, channels = images[1].channels;
+    printf("\nFrom:%s\n\n", images[1].currentplace);
+
+    printf("(%08x)\n\n", getPixel(images[1], 599, 599));
+    printf("image[o] nb channels:%d\n%s\n", images[0].channels, images[0].currentplace);
+    printf("(%08x)\n\n", getPixelRGBA(images[0], 0 , 2));
+    */
+
+    // TODO: Change all these delimiters
+    // images[original].height
+    // images[original].width
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            for (int k = 0; k < 3; k++) {
+
+                // TODO: RENAME THIS VARIABLE
+                unsigned char renameMe = (unsigned char)lerp(images[original], i, j, k);
+                unsigned char originalTen = (unsigned char)(renameMe / 10);
+                unsigned char originalUnity = (unsigned char)(renameMe % 10);
+                const unsigned char randTen = randomUnity;
+                const unsigned char randUnity = randomUnity;
+                printf("Original channel: %d => %d\n", getpixelchannel(images[original], i, j, k), renameMe);
+                printf("Share 1 Before: %d ", getpixelchannel(images[share1], i, j, k));
+
+                unsigned char* sharePixel = getPointerChannel(images[share1], i, j, k);
+                unsigned char sharePixelHundred = *sharePixel;
+                unsigned char sharePixelTen = (unsigned char) (10 * ((randTen + originalTen) % 10));
+                
+                if (sharePixelHundred >= 200 && (sharePixelTen + randUnity >= 55)){
+                    sharePixelHundred = 100;
+                } else if(sharePixelHundred >= 200){
+                    sharePixelHundred = 200;
+                } else if(sharePixelHundred >= 100){
+                    sharePixelHundred = 100;
+                } else {
+                    sharePixelHundred = 0;
+                }
+
+                *sharePixel = (sharePixelHundred + sharePixelTen + randUnity);
+
+                printf("After: %d\n", getpixelchannel(images[share1], i, j, k));
+                printf("Share 2 Before: %d ", getpixelchannel(images[share2], i, j, k));
+
+                sharePixel = getPointerChannel(images[share2], i, j, k);
+                sharePixelHundred = *sharePixel;
+                sharePixelTen = (unsigned char) (10 * ((randUnity + originalUnity) % 10));
+
+                if(sharePixelHundred >= 200 && (sharePixelTen + randTen >= 55)){
+                    sharePixelHundred = 100;
+                } else if(sharePixelHundred >= 200){
+                    sharePixelHundred = 200;
+                } else if(sharePixelHundred >= 100){
+                    sharePixelHundred = 100;
+                } else {
+                    sharePixelHundred = 0;
+                }
+
+                *sharePixel = (sharePixelHundred + sharePixelTen + randTen);
+
+                printf("After: %d\n", getpixelchannel(images[share2], i, j, k));
+                printf("randUnity: %d randTen: %d\n",randUnity, randTen);
+                printf("DEBUG: %d\n", sharePixelTen + randTen);
+            }
+        }
+    }
+
 
 	return 0;
 }
