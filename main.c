@@ -117,24 +117,33 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
     printf("image[o] nb channels:%d\n%s\n", images[0].channels, images[0].currentplace);
     printf("(%08x)\n\n", getPixelRGBA(images[0], 0 , 2));
     */
+    /*
+    printf("Pixel 1x1 Before process:\nfrom %s\n\n", images[share1].newplace);
+    for (int i = 0; i < 4; ++i) {
+        printf("%d ",*getPointerChannel(images[share1], 247, 128,i));
+    }
+    printf("\n\n");
+     */
+
 
     // TODO: Change all these delimiters
     // images[original].height
     // images[original].width
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
+    for (int i = 0; i < images[original].height; i++) {
+        for (int j = 0; j < images[original].width; j++) {
             for (int k = 0; k < 3; k++) {
 
                 // TODO: RENAME THIS VARIABLE
-                unsigned char renameMe = (unsigned char)lerp(images[original], i, j, k);
+                unsigned char renameMe = (unsigned char)lerp(images[original], j, i, k);
                 unsigned char originalTen = (unsigned char)(renameMe / 10);
                 unsigned char originalUnity = (unsigned char)(renameMe % 10);
                 const unsigned char randTen = randomUnity;
                 const unsigned char randUnity = randomUnity;
-                printf("Original channel: %d => %d\n", getpixelchannel(images[original], i, j, k), renameMe);
-                printf("Share 1 Before: %d ", getpixelchannel(images[share1], i, j, k));
 
-                unsigned char* sharePixel = getPointerChannel(images[share1], i, j, k);
+                //printf("Original channel: %d => %d\n", getpixelchannel(images[original], i, j, k), renameMe);
+                //printf("Share 1 Before: %d ", getpixelchannel(images[share1], i, j, k));
+
+                unsigned char* sharePixel = getPointerChannel(images[share1], j, i, k);
                 unsigned char sharePixelHundred = *sharePixel;
                 unsigned char sharePixelTen = (unsigned char) (10 * ((randTen + originalTen) % 10));
                 
@@ -150,10 +159,10 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
 
                 *sharePixel = (sharePixelHundred + sharePixelTen + randUnity);
 
-                printf("After: %d\n", getpixelchannel(images[share1], i, j, k));
-                printf("Share 2 Before: %d ", getpixelchannel(images[share2], i, j, k));
+                //printf("After: %d\n", getpixelchannel(images[share1], i, j, k));
+                //printf("Share 2 Before: %d ", getpixelchannel(images[share2], i, j, k));
 
-                sharePixel = getPointerChannel(images[share2], i, j, k);
+                sharePixel = getPointerChannel(images[share2], j, i, k);
                 sharePixelHundred = *sharePixel;
                 sharePixelTen = (unsigned char) (10 * ((randUnity + originalUnity) % 10));
 
@@ -169,13 +178,49 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
 
                 *sharePixel = (sharePixelHundred + sharePixelTen + randTen);
 
-                printf("After: %d\n", getpixelchannel(images[share2], i, j, k));
-                printf("randUnity: %d randTen: %d\n",randUnity, randTen);
-                printf("DEBUG: %d\n", sharePixelTen + randTen);
+                //printf("After: %d\n", getpixelchannel(images[share2], i, j, k));
+                //printf("randUnity: %d randTen: %d\n",randUnity, randTen);
+                //printf("DEBUG: %d\n", sharePixelTen + randTen);
             }
         }
     }
 
+    /*
+    printf("Pixel 1x1 Before process:\nfrom %s\n\n", images[share1].newplace);
+    for (int i = 0; i < 4; ++i) {
+        printf("%d ",*getPointerChannel(images[share1], 247, 128,i));
+    }
+    printf("\n\n");
+     */
+
+    printf("image 0: %d channels\n", images[original].channels);
+    printf("image 1: %d channels\n", images[share1].channels);
+    stbi_write_bmp(images[share1].newplace, images[share1].width, images[share1].height,
+                   images[share1].channels, images[share1].pixelPointer);
+                   //images[share1].width * images[share1].channels);
+    printf("image 2: %d channels\n", images[share2].channels);
+    stbi_write_bmp(images[share2].newplace, images[share2].width, images[share2].height,
+                   images[share2].channels, images[share2].pixelPointer);
+                   //images[share2].width * images[share2].channels);
+
+
+    /*
+    printf("Share 1:\n");
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 5; ++j) {
+            printf("%08x ", getPixel(images[share1],i,j));
+        }
+        printf("\n");
+    }
+
+    printf("\nShare 2:\n");
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 5; ++j) {
+            printf("%08x ", getPixel(images[share2],i,j));
+        }
+        printf("\n");
+    }
+    */
 
 	return 0;
 }
