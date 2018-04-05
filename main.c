@@ -10,27 +10,34 @@
 enum { share1 = 0, share2, original };
 enum { undefined = 1,  decrypt, crypt };
 
+// Image struct
 typedef struct imageHandler{
     char* currentplace,* newplace ;
     unsigned char * pixelPointer;
     int width, height, channels;
 }imageHandler;
 
+// Get a address of especified channel of image
 #define getPointerChannel(image, x, y, channel) \
     (image.pixelPointer + x*image.width*image.channels + y*image.channels + channel)
 
+// Get a value of especified channel of image
 #define getpixelchannel(image, x, y, channel) \
     (*(getPointerChannel(image, x, y, channel)))
 
 //TODO: Check if this name make any sense
+// Map number in range 0-255 to 0-99
 #define reduce(images, i, j, k) \
     (lround(99.0 / 255.0 * getpixelchannel(images, i, j, k)))
 
+// Get ten and unity of a number
 #define ten(number) \
     ((number) % 100)
 
 // TODO: Change function rand to another one
+// Gereate a random number between 0-9
 #define randomUnity ((unsigned char) (rand() / (RAND_MAX / 10)))
+
 
 int main(int argc, const char *argv[], char *env_var_ptr[]){
 
@@ -58,6 +65,7 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 printf("\t\t\t\t%s\n",argv[optind]);
                 printf("\t\t\t\t%s\n",argv[optind+1]);
 #endif
+                // Get input addresses
                 for (int i = -1; i < 2; i++) {
                     images[i+1].currentplace = (char *) argv[optind + i];
                 }
@@ -67,6 +75,7 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 printf("Output option: \t%s\n", optarg);
                 printf("\t\t\t\t%s\n",argv[optind]);
 #endif
+                // Get output addresses
                 for (int i = -1; i < 1; i++) {
                     images[i+1].newplace = (char *) argv[optind + i];
                 }
@@ -98,39 +107,47 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
     switch (mode){
         case decrypt:
 
+            // Load input images
             for (int i = 0; i < decrypt; i++) {
                 images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width,
                          &images[i].height, &images[i].channels, STBI_default);
             }
 
+            // Correct some values and initialize output images
             images[original] = images[share1];
             images[share1].newplace = NULL;
             images[original].currentplace = NULL;
 
+            // Allocate matrix of recovered image
             images[original].pixelPointer = malloc(images[original].height *
                     images[original].width * (size_t) images[original].channels);
 
             // TODO: Change all these delimiters
+            // Decrypt for
             for (int i = 0; i < images[share1].height; ++i) {
                 for (int j = 0; j < images[share1].width; ++j) {
                     for (int k = 0; k < 3; ++k) {
 
+                        // Get pointer to current channel
                         unsigned char* share1Pixel = getPointerChannel(images[share1], i, j, k);
                         unsigned char* share2Pixel = getPointerChannel(images[share2], i, j, k);
-                        // TODO: Verify if this name have any sense
+                        // TODO: Verify if this name of variable have any sense
                         // TODO: Use define
+                        // Calculates the reduced ten and unity of original image
                         char reducedTen = (char)(((ten(*share1Pixel)/10)) - ((ten(*share2Pixel)%10)));
                         reducedTen < 0 ? reducedTen = (char)10 + reducedTen : reducedTen;
 
                         char reducedUnity = (char)(((ten(*share2Pixel)/10)) - ((ten(*share1Pixel)%10)));
                         reducedUnity < 0 ? reducedUnity = (char)10 + reducedUnity : reducedUnity;
 
+                        // Writes in image a retrieved channel
                         *getPointerChannel(images[original], i, j, k) =
                                 (unsigned char) round(((double)255 * (10 * reducedTen + reducedUnity)) / 99);
                     }
                 }
             }
 
+            // Record on disk a retrieved image
             stbi_write_bmp(images[original].newplace, images[original].width, images[original].height,
                            images[original].channels, images[original].pixelPointer);
 
@@ -138,6 +155,7 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
 
         case crypt:
 
+            // Load all images from disk (share1, share2 and original)
             for (int i = 0; i < crypt; i++) {
                 images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width,
                           &images[i].height, &images[i].channels, STBI_default);
@@ -148,14 +166,18 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             }
 
             // TODO: Change all these delimiters
+            // Crypt for
             for (int i = 0; i < images[original].height; i++) {
                 for (int j = 0; j < images[original].width; j++) {
                     for (int k = 0; k < 3; k++) {
 
                         // TODO: RENAME THIS VARIABLE
+                        //
                         unsigned char renameMe = (unsigned char)reduce(images[original], i, j, k);
+                        // Get ten and unity of original image
                         unsigned char originalTen = (unsigned char)(renameMe / 10);
                         unsigned char originalUnity = (unsigned char)(renameMe % 10);
+                        // Generates a ten and unity random number
                         const unsigned char randTen = randomUnity;
                         const unsigned char randUnity = randomUnity;
 
@@ -204,12 +226,12 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 }
             }
 
-            printf("image 0: %d channels\n", images[original].channels);
-            printf("image 1: %d channels\n", images[share1].channels);
+            // Write share1 on disk
             stbi_write_bmp(images[share1].newplace, images[share1].width, images[share1].height,
                            images[share1].channels, images[share1].pixelPointer);
                            //images[share1].width * images[share1].channels);
-            printf("image 2: %d channels\n", images[share2].channels);
+
+            // Write share2 on disk
             stbi_write_bmp(images[share2].newplace, images[share2].width, images[share2].height,
                            images[share2].channels, images[share2].pixelPointer);
                            //images[share2].width * images[share2].channels);
