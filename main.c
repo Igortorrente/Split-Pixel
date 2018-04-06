@@ -1,11 +1,14 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image.h"
 #include "stb_image_write.h"
-#include <unistd.h>
-#include <math.h>
+#include "stb_image_resize..h"
 #include <stdlib.h>
+#include <math.h>
+#include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 enum { share1 = 0, share2, original };
 enum { undefined = 1,  decrypt, crypt };
@@ -19,7 +22,7 @@ typedef struct imageHandler{
 
 // Get a address of especified channel of image
 #define getPointerChannel(image, x, y, channel) \
-    (image.pixelPointer + x*image.width*image.channels + y*image.channels + channel)
+    ((image).pixelPointer + (x)*(image).width*(image).channels + (y)*(image).channels + (channel))
 
 // Get a value of especified channel of image
 #define getpixelchannel(image, x, y, channel) \
@@ -111,6 +114,11 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             for (int i = 0; i < decrypt; i++) {
                 images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width,
                          &images[i].height, &images[i].channels, STBI_default);
+
+                if(images[i].pixelPointer == NULL){
+                    fprintf(stderr,"Error: Can't open image from '%s'\n", images[i].currentplace);
+                    return 1;
+                }
             }
 
             // Correct some values and initialize output images
@@ -121,6 +129,10 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             // Allocate matrix of recovered image
             images[original].pixelPointer = malloc(images[original].height *
                     images[original].width * (size_t) images[original].channels);
+            if (images[original].pixelPointer == NULL){
+                fprintf(stderr, "Error: Couldn't allocate image matrix\n");
+                return 1;
+            }
 
             // TODO: Change all these delimiters
             // Decrypt for
@@ -148,17 +160,24 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             }
 
             // Record on disk a retrieved image
-            stbi_write_bmp(images[original].newplace, images[original].width, images[original].height,
-                           images[original].channels, images[original].pixelPointer);
+            if (!stbi_write_bmp(images[original].newplace, images[original].width, images[original].height,
+                           images[original].channels, images[original].pixelPointer)){
+                fprintf(stderr, "Coudn't save image '%s' on disk ", images[original].newplace);
+                return 1;
+            }
 
             break;
-
         case crypt:
 
             // Load all images from disk (share1, share2 and original)
             for (int i = 0; i < crypt; i++) {
                 images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width,
                           &images[i].height, &images[i].channels, STBI_default);
+
+                if(images[i].pixelPointer == NULL){
+                    fprintf(stderr, "Error: Coudn't open image from '%s'\n", images[i].currentplace);
+                    return 1;
+                }
 #ifdef DEBUG
                 printf("Image [%d] - height: %d  width:%d channels:%d\nFrom:%s\nTo:%s\n\n", i, images[i].height
                 , images[i].width, images[i].channels, in[i], out[i]);
@@ -227,20 +246,24 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             }
 
             // Write share1 on disk
-            stbi_write_bmp(images[share1].newplace, images[share1].width, images[share1].height,
-                           images[share1].channels, images[share1].pixelPointer);
-                           //images[share1].width * images[share1].channels);
-
+            if (!stbi_write_bmp(images[share1].newplace, images[share1].width, images[share1].height,
+                           images[share1].channels, images[share1].pixelPointer)) {
+                            //images[share1].width * images[share1].channels);
+                fprintf(stderr, "Erro: Coudn't save image '%s' on disk\n", images[share1].newplace);
+                return 1;
+            }
             // Write share2 on disk
-            stbi_write_bmp(images[share2].newplace, images[share2].width, images[share2].height,
-                           images[share2].channels, images[share2].pixelPointer);
-                           //images[share2].width * images[share2].channels);
-
+            if (!stbi_write_bmp(images[share2].newplace, images[share2].width, images[share2].height,
+                           images[share2].channels, images[share2].pixelPointer)) {
+                            //images[share2].width * images[share2].channels);
+                fprintf(stderr, "Erro: Coudn't save image '%s' on disk\n", images[share2].newplace);
+                return 1;
+            }
             break;
         case undefined:
             fprintf(stderr, "You need select de mode (crypt or decrypt)");
             return  1;
-	}
+    }
 
 	return 0;
 }
