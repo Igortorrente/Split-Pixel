@@ -41,6 +41,50 @@ typedef struct imageHandler{
 // Gereate a random number between 0-9
 #define randomUnity ((unsigned char) (rand() / (RAND_MAX / 10)))
 
+#define WRITE_BMP(image) \
+    (!stbi_write_bmp(image.newplace, image.width, image.height, \
+                     image.channels, image.pixelPointer))
+
+#define WRITE_TGA(image) \
+    (!stbi_write_tga(image.newplace, image.width, image.height, \
+                     image.channels, image.pixelPointer))
+
+// TODO: Verify what is the best value
+#define WRITE_JPEG(image) \
+    (!stbi_write_jpg(image.newplace, image.width, image.height, \
+                     image.channels, image.pixelPointer, 80))
+
+#define WRITE_PNG(image) \
+    (!stbi_write_jpg(image.newplace, image.width, image.height, \
+                     image.channels, image.pixelPointer, \
+                     image.width * image.channels))
+
+// Supported Formats
+#define PNG  '\0gnp'
+#define JPG  '\0gpj'
+#define JPEG 'gepj'
+#define BMP  '\0pmb'
+#define TGA  '\0agt'
+
+
+int saveImage(imageHandler images[], int position){
+    int imageFormat;
+    memcpy(&imageFormat, strrchr(images[position].newplace, '.') + 1, 4 * sizeof(char));
+
+    switch (imageFormat){
+        case PNG:
+                return WRITE_PNG(images[position]);
+        case JPEG:
+        case JPG:
+                return WRITE_JPEG(images[position]);
+        case BMP:
+                return WRITE_BMP(images[position]);
+        case TGA:
+                return WRITE_TGA(images[position]);
+        default:
+            return -1;
+    }
+}
 
 int main(int argc, const char *argv[], char *env_var_ptr[]){
 
@@ -105,7 +149,13 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 return 1;
         }
     }
-
+    /*
+    int imageFormat;
+	int bleeeeee = PNG;
+    memcpy(&imageFormat, strrchr(images[share1].newplace, '.') + 1, 4 * sizeof(char));
+    printf("%c %c %c %c\n",  (imageFormat&0xff000000) >> 24, (imageFormat&0xff0000) >> 16,
+           (imageFormat&0xff00) >> 8, imageFormat&0xff);
+     */
 
     switch (mode){
         case decrypt:
@@ -158,12 +208,16 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                     }
                 }
             }
-
-            // Record on disk a retrieved image
-            if (!stbi_write_bmp(images[original].newplace, images[original].width, images[original].height,
-                           images[original].channels, images[original].pixelPointer)){
-                fprintf(stderr, "Coudn't save image '%s' on disk ", images[original].newplace);
-                return 1;
+            // Records on disk a retrieved image
+            switch (saveImage(images, original)){
+                case -1:
+                    fprintf(stderr, "Format unsupported\n");
+                    return 1;
+                case 0:
+                    break;
+                default:
+                    fprintf(stderr, "Coudn't save image '%s' on disk\n", images[original].newplace);
+                    return 1;
             }
 
             break;
@@ -245,19 +299,20 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 }
             }
 
-            // Write share1 on disk
-            if (!stbi_write_bmp(images[share1].newplace, images[share1].width, images[share1].height,
-                           images[share1].channels, images[share1].pixelPointer)) {
-                            //images[share1].width * images[share1].channels);
-                fprintf(stderr, "Erro: Coudn't save image '%s' on disk\n", images[share1].newplace);
-                return 1;
-            }
-            // Write share2 on disk
-            if (!stbi_write_bmp(images[share2].newplace, images[share2].width, images[share2].height,
-                           images[share2].channels, images[share2].pixelPointer)) {
-                            //images[share2].width * images[share2].channels);
-                fprintf(stderr, "Erro: Coudn't save image '%s' on disk\n", images[share2].newplace);
-                return 1;
+            // Records on disk the shares
+            for (int i = share1; i <= share2; ++i) {
+                //printf("share%d : resolution:%dx%dx%d\n%s\n", i, images[i].width,
+                //       images[i].height,images[i].channels, images[i].newplace);
+                switch (saveImage(images, i)){
+                    case -1:
+                        fprintf(stderr, "Format unsupported\n");
+                        return 1;
+                    case 0:
+                        break;
+                    default:
+                        fprintf(stderr, "Coudn't save image '%s' on disk\n", images[share1].newplace);
+                        return 1;
+                }
             }
             break;
         case undefined:
