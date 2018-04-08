@@ -12,6 +12,7 @@
 
 enum { share1 = 0, share2, original };
 enum { undefined = 1,  decrypt, crypt };
+enum { width = 0, height};
 
 // Image struct
 typedef struct imageHandler{
@@ -59,6 +60,13 @@ typedef struct imageHandler{
                      image.channels, image.pixelPointer, \
                      image.width * image.channels))
 
+#define STBI_RESIZE(image, newResolution, resizedImage) \
+        stbir_resize_uint8(image.pixelPointer, image.width, image.height, 0 , \
+        resizedImage, newResolution[width], newResolution[height], 0, image.channels);
+
+#define IMAGE_MALLOC(image, newResolution) \
+        malloc((size_t) (newResolution[width] * newResolution[height] * image.channels* sizeof(char)))
+
 // Supported Formats
 #define PNG  '\0gnp'
 #define JPG  '\0gpj'
@@ -67,7 +75,7 @@ typedef struct imageHandler{
 #define TGA  '\0agt'
 
 
-int saveImage(imageHandler images[], int position){
+int saveImages(imageHandler *images, int position){
     int imageFormat;
     memcpy(&imageFormat, strrchr(images[position].newplace, '.') + 1, 4 * sizeof(char));
 
@@ -86,6 +94,22 @@ int saveImage(imageHandler images[], int position){
     }
 }
 
+int resizeImages(imageHandler *images, int *newResolution, int begin, int end){
+    for (int i = begin; i <= end; ++i) {
+        unsigned char* resizedImage = IMAGE_MALLOC(images[i], newResolution);
+        if(resizedImage == NULL){
+            fprintf(stderr, "Error: Couldn't allocate image matrix\n");
+            return 1;
+        }
+        STBI_RESIZE(images[i], newResolution, resizedImage);
+        free(images[i].pixelPointer);
+        images[i].pixelPointer = resizedImage;
+        images[i].width = newResolution[width];
+        images[i].height = newResolution[height];
+    }
+    return 0;
+}
+
 int main(int argc, const char *argv[], char *env_var_ptr[]){
 
 #ifdef DEBUG
@@ -98,11 +122,11 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
     printf("\n\n");
 #endif
     imageHandler images[3];
+    int newResolution[2] = { 0, 0 };
     char mode = undefined;
     srand (time(NULL));
 
 
-// TODO: Fix aguments not red because of other without value "-m -i ..."
     int option = 0;
 	while ((option = getopt(argc, (char *const *)argv, "m:r:i:o:hv")) != -1) {
         switch(option) {
@@ -134,7 +158,14 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 printf("This suppose to be a verbose mode\n");
                 break;
             case 'r':
-                printf("This supposed to be a resize option\n");
+                for (int i = -1; i < 1; i++) {
+                    newResolution[i+1] = atoi(argv[optind + i]);
+                    if(!newResolution[i+1]){
+                        fprintf(stderr, "'%s' is not valid\n", argv[optind + i]);
+                        return 1;
+                    }
+                }
+                break;
             case 'm':
                 if (!strcmp("crypt", optarg))
                     mode = crypt;
@@ -195,7 +226,7 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                         unsigned char* share2Pixel = getPointerChannel(images[share2], i, j, k);
                         // TODO: Verify if this name of variable have any sense
                         // TODO: Use define
-                        // Calculates the reduced ten and unity of original image
+                        // Calculates the reduced ten and unity of original(Hidden) image
                         char reducedTen = (char)(((ten(*share1Pixel)/10)) - ((ten(*share2Pixel)%10)));
                         reducedTen < 0 ? reducedTen = (char)10 + reducedTen : reducedTen;
 
@@ -209,7 +240,7 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 }
             }
             // Records on disk a retrieved image
-            switch (saveImage(images, original)){
+            switch (saveImages(images, original)){
                 case -1:
                     fprintf(stderr, "Format unsupported\n");
                     return 1;
@@ -223,7 +254,7 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             break;
         case crypt:
 
-            // Load all images from disk (share1, share2 and original)
+            // Load all images from disk (share1, share2 and original(Hidden))
             for (int i = 0; i < crypt; i++) {
                 images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width,
                           &images[i].height, &images[i].channels, STBI_default);
@@ -238,23 +269,42 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
 #endif
             }
 
+            // Verify if resize was required
+            if (newResolution[0] != 0) {
+                resizeImages(images, newResolution, share1, original);
+            } else {
+                // Verify if resolution of share1 is direfent of original(Hidden) image
+                if (images[share1].width != images[original].width ||
+                    images[share1].height != images[original].height) {
+                    int resolution[] = { images[original].width, images[original].height };
+                    // Resize share1 to resolution of image original(Hidden)
+                    resizeImages(images, resolution, share1, share1);
+
+                //Same here
+                } if (images[share2].width != images[original].width ||
+                      images[share2].height != images[original].height){
+                    int resolution[] = { images[original].width, images[original].height };
+                    resizeImages(images, resolution, share2, share2);
+                }
+            }
+
             // TODO: Change all these delimiters
             // Crypt for
-            for (int i = 0; i < images[original].height; i++) {
-                for (int j = 0; j < images[original].width; j++) {
+            for (int i = 0; i < images[share1].height; i++) {
+                for (int j = 0; j < images[share1].width; j++) {
                     for (int k = 0; k < 3; k++) {
 
                         // TODO: RENAME THIS VARIABLE
                         //
                         unsigned char renameMe = (unsigned char)reduce(images[original], i, j, k);
-                        // Get ten and unity of original image
+                        // Get ten and unity of original(Hidden) image
                         unsigned char originalTen = (unsigned char)(renameMe / 10);
                         unsigned char originalUnity = (unsigned char)(renameMe % 10);
                         // Generates a ten and unity random number
                         const unsigned char randTen = randomUnity;
                         const unsigned char randUnity = randomUnity;
 
-                        //printf("Original channel: %d => %d\n", getpixelchannel(images[original], i, j, k), renameMe);
+                        //printf("Original(Hidden) channel: %d => %d\n", getpixelchannel(images[original(Hidden)], i, j, k), renameMe);
                         //printf("Share 1 Before: %d ", getpixelchannel(images[share1], i, j, k));
 
                         unsigned char* sharePixel = getPointerChannel(images[share1], i, j, k);
@@ -303,7 +353,7 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             for (int i = share1; i <= share2; ++i) {
                 //printf("share%d : resolution:%dx%dx%d\n%s\n", i, images[i].width,
                 //       images[i].height,images[i].channels, images[i].newplace);
-                switch (saveImage(images, i)){
+                switch (saveImages(images, i)){
                     case -1:
                         fprintf(stderr, "Format unsupported\n");
                         return 1;
