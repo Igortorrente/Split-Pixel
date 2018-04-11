@@ -74,6 +74,28 @@ typedef struct imageHandler{
 #define BMP  '\0pmb'
 #define TGA  '\0agt'
 
+#define HELP_MESSAGE "Split Pixel 0.1\n"\
+"Program based on Leandro Ribeiro's algorithm which allows to hide one image " \
+"into two other images and then retrieve the content.\n\n"\
+"Usage:\tSplit-Pixel -i [input images] -o [output images] -m <Mode> [Options]\n"\
+"\tFlags don't need be in this order\n"\
+"\tSupported formats: png, jpeg, bmp and tga\n\n"\
+"Mode:\n"\
+"\tcrypt: This mode receive two cover images and one " \
+"secret image which will be hidden.\n"\
+"\tdecrypt: This mode receive two cover images which contains "\
+"a secret image to be decrypted.\n\n"\
+"\t-m\t{crypt, decrypt}\n\n"\
+"Inputs images:\n"\
+"\t[Crypt Mode]:\t\t<Cover1> <Cover2> <Hidden>\n"\
+"\t[Decrypt Mode]:\t\t<Cover1> <Cover2>\n\n"\
+"Output images:\n"\
+"\t[Crypt Mode]:\t\t<Cover1> <Cover2>\n"\
+"\t[Decrypt Mode]:\t\t<Hidden>\n\n"\
+"Options:\n"\
+"\t-r <Width> <Height>\tResize image(s) of output\n\n"\
+"Project repository: https://github.com/Igortorrente/Split-Pixel\n"\
+"Paper: <Leandro's Papers Here!!>\n"
 
 int saveImages(imageHandler *images, int position){
     int imageFormat;
@@ -152,10 +174,10 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 }
                 break;
             case 'h':
-                printf("Message of help here\n");
-                break;
+                printf(HELP_MESSAGE);
+                return 0;
             case 'v':
-                printf("This suppose to be a verbose mode\n");
+                printf("This suppose to be a verbose mode, not implemented yet\n");
                 break;
             case 'r':
                 for (int i = -1; i < 1; i++) {
@@ -295,7 +317,6 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                     for (int k = 0; k < 3; k++) {
 
                         // TODO: RENAME THIS VARIABLE
-                        //
                         unsigned char renameMe = (unsigned char)reduce(images[original], i, j, k);
                         // Get ten and unity of original(Hidden) image
                         unsigned char originalTen = (unsigned char)(renameMe / 10);
