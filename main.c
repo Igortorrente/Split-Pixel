@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 enum { share1 = 0, share2, original };
-enum { undefined = 1,  decrypt, crypt };
+enum { undefined = 1,  decrypt, encrypt };
 enum { width = 0, height};
 
 // Image struct
@@ -80,20 +80,24 @@ typedef struct imageHandler{
 "Usage:\tSplit-Pixel -i [input images] -o [output images] -m <Mode> [Options]\n"\
 "\tFlags don't need be in this order\n"\
 "\tSupported formats: png, jpeg, bmp and tga\n\n"\
+"\tExample: ./Split-Pixel -m encrypt -i example1.png example2.bmp Hidden.tga -o " \
+"output1.jpg output2.jpg -r 1920 1080\n\n"\
 "Mode:\n"\
-"\tcrypt: This mode receive two cover images and one " \
+"\tencrypt: This mode receive two cover images and one " \
 "secret image which will be hidden.\n"\
 "\tdecrypt: This mode receive two cover images which contains "\
 "a secret image to be decrypted.\n\n"\
-"\t-m\t{crypt, decrypt}\n\n"\
+"\t-m\t{encrypt, decrypt}\n\n"\
 "Inputs images:\n"\
-"\t[Crypt Mode]:\t\t<Cover1> <Cover2> <Hidden>\n"\
+"\t[encrypt Mode]:\t\t<Cover1> <Cover2> <Secret>\n"\
 "\t[Decrypt Mode]:\t\t<Cover1> <Cover2>\n\n"\
 "Output images:\n"\
-"\t[Crypt Mode]:\t\t<Cover1> <Cover2>\n"\
-"\t[Decrypt Mode]:\t\t<Hidden>\n\n"\
+"\tHere you put the names of output image(s) with desired extension\n"\
+"\t[encrypt Mode]:\t\t<Output1> <Output2>\n"\
+"\t[Decrypt Mode]:\t\t<Output>\n\n"\
 "Options:\n"\
-"\t-r <Width> <Height>\tResize image(s) of output\n\n"\
+"\t-r <Width> <Height>\tResize image(s) of output(Only works with encrypt)\n"\
+"\t-h\tShow This Message\n\n"\
 "Project repository: https://github.com/Igortorrente/Split-Pixel\n"\
 "Paper: <Leandro's Papers Here!!>\n"
 
@@ -189,12 +193,12 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
                 }
                 break;
             case 'm':
-                if (!strcmp("crypt", optarg))
-                    mode = crypt;
+                if (!strcmp("encrypt", optarg))
+                    mode = encrypt;
                 else if (!strcmp("decrypt", optarg))
                     mode = decrypt;
                 else {
-                    fprintf(stderr, "'%s' is not a valid mode\nTry crypt, decrypt", optarg);
+                    fprintf(stderr, "'%s' is not a valid mode\nTry encrypt, decrypt", optarg);
                     return 1;
                 }
                 break;
@@ -274,10 +278,10 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             }
 
             break;
-        case crypt:
+        case encrypt:
 
             // Load all images from disk (share1, share2 and original(Hidden))
-            for (int i = 0; i < crypt; i++) {
+            for (int i = 0; i < encrypt; i++) {
                 images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width,
                           &images[i].height, &images[i].channels, STBI_default);
 
@@ -311,7 +315,7 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             }
 
             // TODO: Change all these delimiters
-            // Crypt for
+            // encrypt for
             for (int i = 0; i < images[share1].height; i++) {
                 for (int j = 0; j < images[share1].width; j++) {
                     for (int k = 0; k < 3; k++) {
@@ -387,7 +391,7 @@ int main(int argc, const char *argv[], char *env_var_ptr[]){
             }
             break;
         case undefined:
-            fprintf(stderr, "You need select de mode (crypt or decrypt)");
+            fprintf(stderr, "You need select de mode (encrypt or decrypt)");
             return  1;
     }
 
