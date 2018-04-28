@@ -204,7 +204,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
                 for (int i = -1; i < 1; i++){
                     newResolution[i + 1] = atoi(argv[optind + i]);
                     if (!newResolution[i + 1]){
-                        fprintf(stderr, "'%s' is not valid\n", argv[optind + i]);
+                        fprintf(stderr, "Error:'%s' is not valid for resolution of image\n", argv[optind + i]);
                         return 1;
                     }
                 }
@@ -215,7 +215,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
                 } else if (!strcmp("decrypt", optarg)){
                     mode = decrypt;
                 } else {
-                    fprintf(stderr, "'%s' is not a valid mode\nTry encrypt, decrypt", optarg);
+                    fprintf(stderr, "Error:'%s' is not a valid mode\nTry encrypt, decrypt", optarg);
                     return 1;
                 }
                 break;
@@ -287,12 +287,12 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
             // Records on disk a retrieved image
             switch (saveImages(images, original)){
                 case -1:
-                    fprintf(stderr, "Format unsupported\n");
+                    fprintf(stderr, "Error: Format unsupported\n");
                     return 1;
                 case 0:
                     break;
                 default:
-                    fprintf(stderr, "Coudn't save image '%s' on disk\n", images[original].newplace);
+                    fprintf(stderr, "Error: Coudn't save image '%s' on disk\n", images[original].newplace);
                     return 1;
             }
 
@@ -396,21 +396,21 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
                 //       images[i].height,images[i].channels, images[i].newplace);
                 switch (saveImages(images, i)){
                     case -2:
-                        fprintf(stderr, "Missing format of image %d\n", i + 1);
+                        fprintf(stderr, "Error: Missing format of image %d\n", i + 1);
                         return 1;
                     case -1:
-                        fprintf(stderr, "Format unsupported of image %d\n", i + 1);
+                        fprintf(stderr, "Error: Format unsupported of image %d\n", i + 1);
                         return 1;
                     case 0:
                         break;
                     default:
-                        fprintf(stderr, "Coudn't save image %d '%s' on disk\n", i + 1, images[i].newplace);
+                        fprintf(stderr, "Error: Coudn't save image %d '%s' on disk\n", i + 1, images[i].newplace);
                         return 1;
                 }
             }
             break;
         case undefined:
-            fprintf(stderr, "You need select de mode (encrypt or decrypt)");
+            fprintf(stderr, "Error: Mode not defined\nTry --help");
             return 1;
     }
 
