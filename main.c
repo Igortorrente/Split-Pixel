@@ -4,12 +4,12 @@
 
 #include "stb_image.h"
 #include "stb_image_write.h"
-#include "stb_image_resize..h"
+#include "stb_image_resize.h"
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
+#include <getopt.h>
 
 enum{ share1 = 0, share2, original };
 enum{ undefined = 1, decrypt, encrypt };
@@ -75,31 +75,46 @@ typedef struct imageHandler{
 #define BMP  '\0pmb'
 #define TGA  '\0agt'
 
+#define LONG_OPTIONS \
+    struct option longOptions[] = { \
+        {"mode", required_argument, NULL, 'm'}, \
+        {"help", no_argument, NULL, 'h'}, \
+        {"input", required_argument, NULL, 'i'}, \
+        {"output", required_argument, NULL, 'o'}, \
+        {"resize", required_argument, NULL, 'r'}, \
+        {"verbose", no_argument, NULL, 'v'}, \
+        {0, 0, 0, 0} \
+    }
+
 #define HELP_MESSAGE \
 "Split Pixel 0.1\n" \
 "Program based on Leandro Ribeiro's algorithm which allows to hide one image " \
 "into two other images and then retrieve the content.\n\n"\
 "Usage:\tSplit-Pixel -i [input images] -o [output images] -m <Mode> [Options]\n" \
-"\tFlags don't need be in this order\n" \
-"\tSupported formats: png, jpeg, bmp and tga\n\n" \
-"\tExample: ./Split-Pixel -m encrypt -i example1.png example2.bmp Hidden.tga -o "\
-"output1.jpg output2.jpg -r 1920 1080\n\n" \
+"\tFlags don't need be in this order.\n" \
+"\tSupported formats: png, jpeg, bmp and tga.\n\n" \
+"\tExample 1: ./Split-Pixel --mode encrypt --input example1.png example2.bmp Hidden.tga --output "\
+"output1.jpg output2.jpg -r 1920 1080\n" \
+"\tExample 2: ./Split-Pixel -m encrypt --input example1.bmp example2.bmp Hidden.tga -o "\
+"output1.jpeg output2.bmp\n\n" \
 "Mode:\n" \
 "\tencrypt: This mode receive two cover images and one " \
 "secret image which will be hidden.\n" \
 "\tdecrypt: This mode receive two cover images which contains " \
 "a secret image to be decrypted.\n\n" \
-"\t-m\t{encrypt, decrypt}\n\n" \
+"\t-m,\t--mode {encrypt, decrypt}\n\n" \
 "Inputs images:\n" \
-"\t[encrypt Mode]:\t\t<Cover1> <Cover2> <Secret>\n" \
-"\t[Decrypt Mode]:\t\t<Cover1> <Cover2>\n\n" \
+"\t[encrypt Mode]:\t<Cover1> <Cover2> <Secret>\n" \
+"\t[Decrypt Mode]:\t<Cover1> <Cover2>\n\n" \
+"\t-i,\t--input\t [input images]\n\n" \
 "Output images:\n" \
-"\tHere you put the names of output image(s) with desired extension\n" \
-"\t[encrypt Mode]:\t\t<Output1> <Output2>\n" \
-"\t[Decrypt Mode]:\t\t<Output>\n\n" \
+"\tHere you put the names of output image(s) with desired extension \n" \
+"\t[encrypt Mode]:\t<Output1> <Output2>\n" \
+"\t[Decrypt Mode]:\t<Output>\n\n" \
+"\t-o,\t--output [output images]\n\n" \
 "Options:\n" \
-"\t-r <Width> <Height>\tResize image(s) of output(Only works with encrypt)\n" \
-"\t-h\tShow This Message\n\n" \
+"\t-r,\t--resize <Width> <Height>\tResize image(s) of output (Only works with encrypt).\n" \
+"\t-h,\t--help\t Show This Message.\n\n" \
 "Project repository: https://github.com/Igortorrente/Split-Pixel\n" \
 "Paper: <Leandro's Papers Here!!>\n"
 
@@ -111,7 +126,7 @@ int saveImages(imageHandler* images, int position){
         memcpy(&imageFormat, formatPointer + 1, 4 * sizeof(char));
     }
 
-    switch (imageFormat) {
+    switch (imageFormat){
         case PNG:
             return WRITE_PNG(images[position]);
         case JPEG:
@@ -131,7 +146,7 @@ int saveImages(imageHandler* images, int position){
 }
 
 int resizeImages(imageHandler* images, int* newResolution, int begin, int end){
-    for (int i = begin; i <= end; ++i) {
+    for (int i = begin; i <= end; ++i){
         unsigned char* resizedImage = IMAGE_MALLOC(images[i], newResolution);
         if (resizedImage == NULL){
             fprintf(stderr, "Error: Couldn't allocate image matrix\n");
@@ -146,7 +161,7 @@ int resizeImages(imageHandler* images, int* newResolution, int begin, int end){
     return 0;
 }
 
-int main(int argc, const char* argv[], char* env_var_ptr[]){
+int main(const int argc, const char* argv[], const char* env_var_ptr[]){
 
 #ifdef DEBUG
     for (int i = 1; i < argc; ++i)
@@ -158,32 +173,24 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
     printf("\n\n");
 #endif
     imageHandler images[3];
-    int newResolution[2] = {0, 0};
+    int newResolution[2] = {0, 0};// inputCount = 0, outputCount = 0;
     char mode = undefined;
     srand(time(NULL));
 
+    LONG_OPTIONS;
 
     int option = 0;
-    while ((option = getopt(argc, (char* const*) argv, "m:r:i:o:hv")) != -1) {
-        switch (option) {
+    while ((option = getopt_long(argc, (char* const*) argv, "m:r:i:o:hv", longOptions, NULL)) != -1){
+        switch (option){
             case 'i':
-#ifdef DEBUG
-                printf("Input option: \t%s\n", optarg);
-                printf("\t\t\t\t%s\n",argv[optind]);
-                printf("\t\t\t\t%s\n",argv[optind+1]);
-#endif
                 // Get input addresses
-                for (int i = -1; i < 2; i++) {
+                for (int i = -1; i < 2; i++){
                     images[i + 1].currentplace = (char*) argv[optind + i];
                 }
                 break;
             case 'o':
-#ifdef DEBUG
-                printf("Output option: \t%s\n", optarg);
-                printf("\t\t\t\t%s\n",argv[optind]);
-#endif
                 // Get output addresses
-                for (int i = -1; i < 1; i++) {
+                for (int i = -1; i < 1; i++){
                     images[i + 1].newplace = (char*) argv[optind + i];
                 }
                 break;
@@ -191,10 +198,10 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
                 printf(HELP_MESSAGE);
                 return 0;
             case 'v':
-                printf("This suppose to be a verbose mode, not implemented yet\n");
+                printf("This suppose to be a verbose mode, not implemented yet :(\n");
                 break;
             case 'r':
-                for (int i = -1; i < 1; i++) {
+                for (int i = -1; i < 1; i++){
                     newResolution[i + 1] = atoi(argv[optind + i]);
                     if (!newResolution[i + 1]){
                         fprintf(stderr, "'%s' is not valid\n", argv[optind + i]);
@@ -213,6 +220,8 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
                 }
                 break;
             case '?':
+                fflush(stderr);
+                printf("Try --help\n");
                 return 1;
         }
     }
@@ -224,11 +233,11 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
            (imageFormat&0xff00) >> 8, imageFormat&0xff);
      */
 
-    switch (mode) {
+    switch (mode){
         case decrypt:
 
             // Load input images
-            for (int i = 0; i < decrypt; i++) {
+            for (int i = 0; i < decrypt; i++){
                 images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width,
                                                    &images[i].height, &images[i].channels, STBI_default);
 
@@ -253,9 +262,9 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
 
             // TODO: Change all these delimiters
             // Decrypt for
-            for (int i = 0; i < images[share1].height; ++i) {
-                for (int j = 0; j < images[share1].width; ++j) {
-                    for (int k = 0; k < 3; ++k) {
+            for (int i = 0; i < images[share1].height; ++i){
+                for (int j = 0; j < images[share1].width; ++j){
+                    for (int k = 0; k < 3; ++k){
 
                         // Get pointer to current channel
                         unsigned char* share1Pixel = getPointerChannel(images[share1], i, j, k);
@@ -276,7 +285,7 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
                 }
             }
             // Records on disk a retrieved image
-            switch (saveImages(images, original)) {
+            switch (saveImages(images, original)){
                 case -1:
                     fprintf(stderr, "Format unsupported\n");
                     return 1;
@@ -291,7 +300,7 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
         case encrypt:
 
             // Load all images from disk (share1, share2 and original(Hidden))
-            for (int i = 0; i < encrypt; i++) {
+            for (int i = 0; i < encrypt; i++){
                 images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width,
                                                    &images[i].height, &images[i].channels, STBI_default);
 
@@ -299,10 +308,6 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
                     fprintf(stderr, "Error: Coudn't open image from '%s'\n", images[i].currentplace);
                     return 1;
                 }
-#ifdef DEBUG
-                printf("Image [%d] - height: %d  width:%d channels:%d\nFrom:%s\nTo:%s\n\n", i, images[i].height
-                , images[i].width, images[i].channels, in[i], out[i]);
-#endif
             }
 
             // Verify if resize was required
@@ -327,9 +332,9 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
 
             // TODO: Change all these delimiters
             // encrypt for
-            for (int i = 0; i < images[share1].height; i++) {
-                for (int j = 0; j < images[share1].width; j++) {
-                    for (int k = 0; k < 3; k++) {
+            for (int i = 0; i < images[share1].height; i++){
+                for (int j = 0; j < images[share1].width; j++){
+                    for (int k = 0; k < 3; k++){
 
                         // TODO: RENAME THIS VARIABLE
                         unsigned char renameMe = (unsigned char) reduce(images[original], i, j, k);
@@ -386,10 +391,10 @@ int main(int argc, const char* argv[], char* env_var_ptr[]){
             }
 
             // Records on disk the shares
-            for (int i = share1; i <= share2; ++i) {
+            for (int i = share1; i <= share2; ++i){
                 //printf("share%d : resolution:%dx%dx%d\n%s\n", i, images[i].width,
                 //       images[i].height,images[i].channels, images[i].newplace);
-                switch (saveImages(images, i)) {
+                switch (saveImages(images, i)){
                     case -2:
                         fprintf(stderr, "Missing format of image %d\n", i + 1);
                         return 1;
