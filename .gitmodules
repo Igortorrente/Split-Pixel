@@ -1,0 +1,6 @@
+[submodule "randombytes"]
+	path = randombytes
+	url = https://github.com/dsprenkels/randombytes.git
+[submodule "stb"]
+	path = stb
+	url = https://github.com/nothings/stb.git

@@ -2,9 +2,10 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 
-#include "stb_image.h"
-#include "stb_image_write.h"
-#include "stb_image_resize.h"
+#include "stb/stb_image.h"
+#include "stb/stb_image_write.h"
+#include "stb/stb_image_resize.h"
+#include "randombytes/randombytes.h"
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
@@ -63,10 +64,27 @@ typedef struct imageHandler{
 
 #define STBI_RESIZE(image, newResolution, resizedImage) \
         stbir_resize_uint8(image.pixelPointer, image.width, image.height, 0 , \
-        resizedImage, newResolution[width], newResolution[height], 0, image.channels);
+        resizedImage, newResolution[width], newResolution[height], 0, image.channels)
 
 #define IMAGE_MALLOC(image, newResolution) \
         malloc((size_t) (newResolution[width] * newResolution[height] * image.channels* sizeof(char)))
+
+// Adjust of the tone of color of pixel
+#define TONE_AJUST(sharePixelHundred, sharePixelTen, rand)\
+        if ((sharePixelHundred) >= 200 && ((sharePixelTen) + (rand) >= 55)){ \
+            (sharePixelHundred) = 100; \
+        } else if ((sharePixelHundred) >= 200){ \
+            (sharePixelHundred) = 200; \
+        } else if ((sharePixelHundred) >= 50){ \
+            (sharePixelHundred) = 100; \
+        } else { \
+             (sharePixelHundred) = 0; \
+        } \
+
+// Verify if the resolution of images are not the same
+#define RESOLUTION_NOT_EQUAL(image1, image2) \
+        images[image1].width != images[image2].width || \
+        images[image1].height != images[image2].height
 
 // Supported Formats
 #define PNG  '\0gnp'
@@ -75,8 +93,9 @@ typedef struct imageHandler{
 #define BMP  '\0pmb'
 #define TGA  '\0agt'
 
+// Inicialization of long options of opt
 #define LONG_OPTIONS \
-    struct option longOptions[] = { \
+    { \
         {"mode", required_argument, NULL, 'm'}, \
         {"help", no_argument, NULL, 'h'}, \
         {"input", required_argument, NULL, 'i'}, \
@@ -118,8 +137,9 @@ typedef struct imageHandler{
 "Project repository: https://github.com/Igortorrente/Split-Pixel\n" \
 "Paper: <Leandro's Papers Here!!>\n"
 
-int saveImages(imageHandler* images, int position){
-    int imageFormat = NULL;
+// Function to save images in different formats
+int writeImages(imageHandler* images, int position){
+    int imageFormat = 0;
     const char* formatPointer = strrchr(images[position].newplace, '.');
 
     if (formatPointer != NULL){
@@ -137,7 +157,7 @@ int saveImages(imageHandler* images, int position){
         case TGA:
             return WRITE_TGA(images[position]);
         default:
-            if (imageFormat == NULL){
+            if (imageFormat == 0){
                 return -2;
             } else {
                 return -1;
@@ -145,14 +165,33 @@ int saveImages(imageHandler* images, int position){
     }
 }
 
+int saveImages(imageHandler* images, int position){
+    switch (writeImages(images, position)){
+        case -2:
+            fprintf(stderr, "Error: Missing format of image %d\n", position + 1);
+            return 1;
+        case -1:
+            fprintf(stderr, "Error: Format unsupported of image %d\n", position + 1);
+            return 1;
+        case 0:
+            return 0;
+        default:
+            fprintf(stderr, "Error: Coudn't save image %d '%s' on disk\n",
+                    position + 1, images[position].newplace);
+            return 1;
+    }
+}
+
+// Function to easy resize images
 int resizeImages(imageHandler* images, int* newResolution, int begin, int end){
     for (int i = begin; i <= end; ++i){
         unsigned char* resizedImage = IMAGE_MALLOC(images[i], newResolution);
         if (resizedImage == NULL){
-            fprintf(stderr, "Error: Couldn't allocate image matrix\n");
             return 1;
         }
-        STBI_RESIZE(images[i], newResolution, resizedImage);
+        if(!STBI_RESIZE(images[i], newResolution, resizedImage)){
+            return 1;
+        }
         free(images[i].pixelPointer);
         images[i].pixelPointer = resizedImage;
         images[i].width = newResolution[width];
@@ -164,7 +203,7 @@ int resizeImages(imageHandler* images, int* newResolution, int begin, int end){
 int main(const int argc, const char* argv[], const char* env_var_ptr[]){
 
 #ifdef DEBUG
-    for (int i = 1; i < argc; ++i)
+    for (int i = 1; i < argc; ++i){
         printf("%d: %s\n", i, argv[i]);
     }
     for (int i = 0; *env_var_ptr != NULL; ++i) {
@@ -173,11 +212,11 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
     printf("\n\n");
 #endif
     imageHandler images[3];
-    int newResolution[2] = {0, 0};// inputCount = 0, outputCount = 0;
+    int newResolution[2] = {0, 0}; // inputCount = 0, outputCount = 0;
     char mode = undefined;
     srand(time(NULL));
 
-    LONG_OPTIONS;
+    struct option longOptions[] = LONG_OPTIONS;
 
     int option = 0;
     while ((option = getopt_long(argc, (char* const*) argv, "m:r:i:o:hv", longOptions, NULL)) != -1){
@@ -225,13 +264,6 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
                 return 1;
         }
     }
-    /*
-    int imageFormat;
-	int bleeeeee = PNG;
-    memcpy(&imageFormat, strrchr(images[share1].newplace, '.') + 1, 4 * sizeof(char));
-    printf("%c %c %c %c\n",  (imageFormat&0xff000000) >> 24, (imageFormat&0xff0000) >> 16,
-           (imageFormat&0xff00) >> 8, imageFormat&0xff);
-     */
 
     switch (mode){
         case decrypt:
@@ -265,18 +297,16 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
             for (int i = 0; i < images[share1].height; ++i){
                 for (int j = 0; j < images[share1].width; ++j){
                     for (int k = 0; k < 3; ++k){
-
                         // Get pointer to current channel
                         unsigned char* share1Pixel = getPointerChannel(images[share1], i, j, k);
                         unsigned char* share2Pixel = getPointerChannel(images[share2], i, j, k);
                         // TODO: Verify if this name of variable have any sense
-                        // TODO: Use define
                         // Calculates the reduced ten and unity of original(Hidden) image
                         char reducedTen = (char) (((ten(*share1Pixel) / 10)) - ((ten(*share2Pixel) % 10)));
-                        reducedTen < 0 ? reducedTen = (char) 10 + reducedTen : reducedTen;
+                        reducedTen = reducedTen < 0 ? (char) 10 + reducedTen : reducedTen;
 
                         char reducedUnity = (char) (((ten(*share2Pixel) / 10)) - ((ten(*share1Pixel) % 10)));
-                        reducedUnity < 0 ? reducedUnity = (char) 10 + reducedUnity : reducedUnity;
+                        reducedUnity =  reducedUnity < 0 ? (char) 10 + reducedUnity : reducedUnity;
 
                         // Writes in image a retrieved channel
                         *getPointerChannel(images[original], i, j, k) =
@@ -285,16 +315,8 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
                 }
             }
             // Records on disk a retrieved image
-            switch (saveImages(images, original)){
-                case -1:
-                    fprintf(stderr, "Error: Format unsupported\n");
-                    return 1;
-                case 0:
-                    break;
-                default:
-                    fprintf(stderr, "Error: Coudn't save image '%s' on disk\n", images[original].newplace);
-                    return 1;
-            }
+            if(saveImages(images, original) == 1)
+                return 1;
 
             break;
         case encrypt:
@@ -303,30 +325,34 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
             for (int i = 0; i < encrypt; i++){
                 images[i].pixelPointer = stbi_load(images[i].currentplace, &images[i].width,
                                                    &images[i].height, &images[i].channels, STBI_default);
-
                 if (images[i].pixelPointer == NULL){
-                    fprintf(stderr, "Error: Coudn't open image from '%s'\n", images[i].currentplace);
+                    fprintf(stderr, "Error: Couldn't open image from '%s'\n", images[i].currentplace);
                     return 1;
                 }
             }
 
             // Verify if resize was required
             if (newResolution[0] != 0){
-                resizeImages(images, newResolution, share1, original);
+                if(resizeImages(images, newResolution, share1, original)){
+                    return 1;
+                }
             } else {
-                // Verify if resolution of share1 is direfent of original(Hidden) image
-                if (images[share1].width != images[original].width ||
-                    images[share1].height != images[original].height){
+                // Verify if resolution of share1 is different of original(Hidden) image
+                if (RESOLUTION_NOT_EQUAL(share1, original)){
                     int resolution[] = {images[original].width, images[original].height};
                     // Resize share1 to resolution of image original(Hidden)
-                    resizeImages(images, resolution, share1, share1);
-
-                    //Same here
+                    if (resizeImages(images, resolution, share1, share1)){
+                        fprintf(stderr, "Error: Couldn't resize cover image 1\n");
+                        return 1;
+                    }
                 }
-                if (images[share2].width != images[original].width ||
-                    images[share2].height != images[original].height){
+                //Same here
+                if (RESOLUTION_NOT_EQUAL(share2, original)){
                     int resolution[] = {images[original].width, images[original].height};
-                    resizeImages(images, resolution, share2, share2);
+                    if (resizeImages(images, resolution, share2, share2)){
+                        fprintf(stderr, "Error: Couldn't resize cover image 2\n");
+                        return 1;
+                    }
                 }
             }
 
@@ -352,15 +378,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
                         unsigned char sharePixelHundred = *sharePixel;
                         unsigned char sharePixelTen = (unsigned char) (10 * ((randTen + originalTen) % 10));
 
-                        if (sharePixelHundred >= 200 && (sharePixelTen + randUnity >= 55)){
-                            sharePixelHundred = 100;
-                        } else if (sharePixelHundred >= 200){
-                            sharePixelHundred = 200;
-                        } else if (sharePixelHundred >= 50){
-                            sharePixelHundred = 100;
-                        } else {
-                            sharePixelHundred = 0;
-                        }
+                        TONE_AJUST(sharePixelHundred, sharePixelTen, randUnity)
 
                         *sharePixel = (sharePixelHundred + sharePixelTen + randUnity);
 
@@ -371,15 +389,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
                         sharePixelHundred = *sharePixel;
                         sharePixelTen = (unsigned char) (10 * ((randUnity + originalUnity) % 10));
 
-                        if (sharePixelHundred >= 200 && (sharePixelTen + randTen >= 55)){
-                            sharePixelHundred = 100;
-                        } else if (sharePixelHundred >= 200){
-                            sharePixelHundred = 200;
-                        } else if (sharePixelHundred >= 50){
-                            sharePixelHundred = 100;
-                        } else {
-                            sharePixelHundred = 0;
-                        }
+                        TONE_AJUST(sharePixelHundred, sharePixelTen, randTen)
 
                         *sharePixel = (sharePixelHundred + sharePixelTen + randTen);
 
@@ -394,19 +404,8 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
             for (int i = share1; i <= share2; ++i){
                 //printf("share%d : resolution:%dx%dx%d\n%s\n", i, images[i].width,
                 //       images[i].height,images[i].channels, images[i].newplace);
-                switch (saveImages(images, i)){
-                    case -2:
-                        fprintf(stderr, "Error: Missing format of image %d\n", i + 1);
-                        return 1;
-                    case -1:
-                        fprintf(stderr, "Error: Format unsupported of image %d\n", i + 1);
-                        return 1;
-                    case 0:
-                        break;
-                    default:
-                        fprintf(stderr, "Error: Coudn't save image %d '%s' on disk\n", i + 1, images[i].newplace);
-                        return 1;
-                }
+                if(saveImages(images,i) == 1)
+                    return 1;
             }
             break;
         case undefined:
