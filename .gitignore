@@ -57,8 +57,7 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-CMakeLists.txt
-Makefile
 cmake-build-debug/
 cmake-build-debug-clang/
 cmake-build-debug-gcc/
+FreeImage3180.pdf
