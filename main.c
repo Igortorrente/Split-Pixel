@@ -1,3 +1,4 @@
+//#include "randombytes/randombytes.h"
 #include <FreeImage.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -72,7 +73,6 @@ typedef struct imageData{
         {"input", required_argument, NULL, 'i'}, \
         {"output", required_argument, NULL, 'o'}, \
         {"resize", required_argument, NULL, 'r'}, \
-        {"verbose", no_argument, NULL, 'v'}, \
         {0, 0, 0, 0} \
     }
 
@@ -171,19 +171,18 @@ int8_t writeImage(imageData* image){
 // Function to save a image, and if an error occurred, print a error message
 // Receives a imageData struct
 // Returns the result of write
-int8_t saveImage(imageData* images, uint8_t position){
-    switch (writeImage(&images[position])){
+int8_t saveImage(imageData* images){
+    switch (writeImage(images)){
         case -2:
-            fprintf(stderr, "Error: Missing format of image %d\n", position + 1);
+            fprintf(stderr, "Error: Missing format of image '%s'\n", images->newplace);
             return 1;
         case -1:
-            fprintf(stderr, "Error: Format unsupported of image %d\n", position + 1);
+            fprintf(stderr, "Error: Format unsupported of image '%s'\n", images->newplace);
             return 1;
         case 0:
             return 0;
         default:
-            fprintf(stderr, "Error: Couldn't save image %d '%s' on disk\n",
-                    position + 1, images[position].newplace);
+            fprintf(stderr, "Error: Couldn't save image '%s' on disk\n", images->newplace);
             return 1;
     }
 }
@@ -247,9 +246,6 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
             case 'h':
                 printf(HELP_MESSAGE);
                 return 0;
-            case 'v':
-                printf("This suppose to be a verbose mode, not implemented yet :(\n");
-                break;
             case 'r':
                 // Get values of -r option
                 for (int i = -1; i < 1; i++){
@@ -301,7 +297,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
 
         FIBITMAP* image = images[i].pixelPointer;
         images[i].BPP = FreeImage_GetBPP(image);
-        //Checks if Bits Per Pixel(BPP) of the image are supported
+        // Checks if Bits Per Pixel(BPP) of the image are supported
         switch(images[i].BPP){
             case 1: case 4: case 16:
                 fprintf(stderr, "Image with %d bit(s) per channels not supported\n", images[i].BPP);
@@ -314,9 +310,6 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
         images[i].height = FreeImage_GetHeight(image);
         images[i].width = FreeImage_GetWidth(image);  
         images[i].channels = (FreeImage_GetLine(image) / images[i].width);
-        printf("\033[32;1m%s\033[0m\nDimensions: %d x %d x %d\nBPP: %d Bits\n\n",
-            images[i].currentplace, images[i].width, images[i].height,
-            images[i].channels, FreeImage_GetBPP(images[i].pixelPointer));
     }
 
     // Checks if secret image is grayscale 
@@ -383,7 +376,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
             }
         }
         // Records on disk a retrieved image
-        if (saveImage(images, secret) == 1){
+        if (saveImage(&images[secret]) == 1){
             return 1;
         }
     } else if(mode == encrypt){
@@ -451,7 +444,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
         }
         // Records on disk the shares
         for (int i = cover1; i <= cover2; ++i){
-            if (saveImage(images, i) == 1){
+            if (saveImage(&images[i]) == 1){
               return 1;
             }
         }
