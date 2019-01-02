@@ -23,6 +23,11 @@ typedef struct imageData{
     uint32_t width, height;
 } imageData;
 
+// Checks if any error occurred and return 1 whether happened
+#define CHECK_ERROR(error) \
+        if(error == 1) \
+            return 1
+
 // TODO: Check if this name make any sense
 // Maps a number on from range of 0-255 on 0-99
 #define reduce(image) (lround((99.0 / 255.0) * (image)))
@@ -222,10 +227,10 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
     #endif
     // Image vector, with space for each image
     imageData images[3];
+    int8_t error = 0, threads = 1;
     uint32_t newResolution[2] = { none, none };
     // Initializes mode
     uint8_t mode = undefined;
-    int8_t threads = 1;
 
     struct option longOptions[] = LONG_OPTIONS;
 
@@ -298,24 +303,24 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
     FreeImage_Initialise(FALSE);
 
     // Loads input images
+    #pragma omp parallel for schedule(static, 1) num_threads(threads)
     for (uint8_t i = cover1; i < mode; i++){
         // Loads the image
         images[i].pixelPointer = loadImage(&images[i]);
         // Checks if image could be loaded
         if (images[i].pixelPointer == NULL){
             fprintf(stderr, "Error: Can't open image from '%s'\n", images[i].currentplace);
-            return 1;
+            error = 1;
+            continue;
         } 
 
         FIBITMAP* image = images[i].pixelPointer;
         images[i].BPP = FreeImage_GetBPP(image);
         // Checks if Bits Per Pixel(BPP) of the image are supported
-        switch(images[i].BPP){
-            case 1: case 4: case 16:
-                fprintf(stderr, "Image with %d bit(s) per channels not supported\n", images[i].BPP);
-                return 1;
-            default:
-                break;
+        if(images[i].BPP == 1 ||images[i].BPP == 4 || images[i].BPP == 16){
+            fprintf(stderr, "Image with %d bit(s) per channels not supported\n", images[i].BPP);
+            error = 1;
+            continue;
         }
 
         // Updates metadata of image
@@ -323,6 +328,8 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
         images[i].width = FreeImage_GetWidth(image);  
         images[i].channels = (FreeImage_GetLine(image) / images[i].width);
     }
+
+    CHECK_ERROR(error);
 
     // Checks if secret image is grayscale 
     if(images[secret].BPP == 8){
@@ -402,23 +409,29 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
         // Verifies if resize was required
         if (newResolution[0] != none){
             // Resize all images
+            #pragma omp parallel for schedule(static, 1) num_threads(threads)
             for (int cover = cover1; cover <= secret; ++cover){
                 if (resizeImages(&images[cover], newResolution[height], newResolution[width])){
-                    return 1;
+                    error = 1;
+                    continue;
                 }                
             }
         } else{
             // Verify if resolution of cover is different of secret(Hidden) image
+            #pragma omp parallel for schedule(static, 1) num_threads(threads)
             for (int cover = cover1; cover <= cover2; ++cover){
                 if (RESOLUTION_NOT_EQUAL(cover, secret)){
                     // Resize cover to resolution of image secret(Hidden)
                     if (resizeImages(&images[cover], images[secret].height, images[secret].width)){
                         fprintf(stderr, "Error: Couldn't resize cover image %d\n", cover);
-                        return 1;
+                        error = 1;
+                        continue;
                     }
                 }
             }
         }
+
+        CHECK_ERROR(error);
 
         // encrypt for
         uint32_t line = images[secret].width * images[secret].channels;
@@ -465,11 +478,13 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
             }
         }
         // Records on disk the shares
+        #pragma omp parallel for schedule(static, 1) num_threads(threads)
         for (int i = cover1; i <= cover2; ++i){
             if (saveImage(&images[i]) == 1){
-              return 1;
+                error = 1;
             }
         }
+        CHECK_ERROR(error);
     }
 
     return 0;
