@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 #include <getopt.h>
+#include <omp.h>
 
 // Image position on vector of images
 enum{ cover1 = 0, cover2, secret };
@@ -34,7 +35,7 @@ typedef struct imageData{
 
 // TODO: Change function rand to another one
 // Generates a random number between 0-9
-#define randomUnit ((BYTE) (rand() / (RAND_MAX / 10)))
+#define randomUnit(seed) ((BYTE) (rand_r((seed)) / (RAND_MAX / 10)))
 
 // Adjusts of the tone of color of pixel
 #define TONE_ADJUST(coverPixelHundred, coverPixelTen, rand) \
@@ -73,6 +74,7 @@ typedef struct imageData{
         {"input", required_argument, NULL, 'i'}, \
         {"output", required_argument, NULL, 'o'}, \
         {"resize", required_argument, NULL, 'r'}, \
+        {"threads", required_argument, NULL, 't'}, \
         {0, 0, 0, 0} \
     }
 
@@ -105,6 +107,7 @@ typedef struct imageData{
     "\t-o,\t--output [output images]\n\n" \
     "Options:\n" \
     "\t-r,\t--resize <Width> <Height>\tResize image(s) of output (Only works with encrypt).\n" \
+    "\t-t,\t--threads <Number of threads>\tSelect how many threads will be used, (-1) activate all" \
     "\t-h,\t--help\t Show This Message.\n\n" \
     "Project repository: https://github.com/Igortorrente/Split-Pixel\n" \
     "Paper: <Leandro's Papers Here!!>\n"
@@ -222,8 +225,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
     uint32_t newResolution[2] = { none, none };
     // Initializes mode
     uint8_t mode = undefined;
-    // Initializes srand
-    srand((unsigned int) time(NULL));
+    int8_t threads = 1;
 
     struct option longOptions[] = LONG_OPTIONS;
 
@@ -247,15 +249,25 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
                 printf(HELP_MESSAGE);
                 return 0;
             case 'r':
-                // Get values of -r option
+                // Gets values of -r option
                 for (int i = -1; i < 1; i++){
                     // Convert to int the value
                     newResolution[i + 1] = atoi(argv[optind + i]);
                     // If 0 or error 
-                    if (!newResolution[i + 1]){
+                    if (newResolution[i + 1] <= 1){
                         fprintf(stderr, "Error:'%s' is not valid value for resolution of image\n", argv[optind + i]);
                         return 1;
                     }
+                }
+                break;
+            case 't':
+                // Gets number of threads
+                threads = atoi(optarg);
+                if (threads < -1 || threads == 0){
+                    fprintf(stderr, "Error: '%s' is not valid for number of threads\n", optarg);
+                    return 1;
+                } else if(threads == -1){
+                    threads = omp_get_num_procs();
                 }
                 break;
             case 'm':
@@ -289,7 +301,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
     for (uint8_t i = cover1; i < mode; i++){
         // Loads the image
         images[i].pixelPointer = loadImage(&images[i]);
-        // Checks if image has been loaded
+        // Checks if image could be loaded
         if (images[i].pixelPointer == NULL){
             fprintf(stderr, "Error: Can't open image from '%s'\n", images[i].currentplace);
             return 1;
@@ -315,6 +327,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
     // Checks if secret image is grayscale 
     if(images[secret].BPP == 8){
         // Converts cover 1 and 2 to grayscale
+        #pragma omp parallel for num_threads(threads) schedule(static, 1)
         for (uint8_t image = cover1; image <= cover2; ++image){
             images[image].pixelPointer = FreeImage_ConvertToGreyscale(images[image].pixelPointer);
             images[image].BPP = 8;
@@ -327,6 +340,7 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
             limit = secret;
         }
         // Removes alpha channel of images 
+        #pragma omp parallel for num_threads(threads) schedule(static, 1)
         for (uint8_t image = cover1; image <= limit; ++image){
             images[image].pixelPointer = FreeImage_ConvertTo24Bits(images[image].pixelPointer);
             images[image].BPP = 24;
@@ -358,17 +372,18 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
         // get line size in bytes and height of image
         uint64_t line = images[secret].width * images[secret].channels;
         uint32_t imageHeight = images[cover1].height;
+        #pragma omp parallel for num_threads(threads) schedule(static, 1)
         for (uint32_t i = 0; i < imageHeight; ++i){
             // Get a pointer of image line i
-            BYTE* cover1Pointer = (BYTE *)FreeImage_GetScanLine(images[cover1].pixelPointer, i);
-            BYTE* cover2Pointer = (BYTE *)FreeImage_GetScanLine(images[cover2].pixelPointer, i);
-            BYTE* secretPointer = (BYTE *)FreeImage_GetScanLine(images[secret].pixelPointer, i);
+            BYTE* cover1Pointer = FreeImage_GetScanLine(images[cover1].pixelPointer, i);
+            BYTE* cover2Pointer = FreeImage_GetScanLine(images[cover2].pixelPointer, i);
+            BYTE* secretPointer = FreeImage_GetScanLine(images[secret].pixelPointer, i);
             for (uint64_t j = 0; j < line; ++j){
                 // Calculates the reduced ten and unit of secret(Hidden) image
-                int8_t retrievedTen = retrieveUnit(cover1Pointer[j], cover2Pointer[j]);
+                int8_t retrievedTen = (int8_t) retrieveUnit(cover1Pointer[j], cover2Pointer[j]);
                 retrievedTen = retrievedTen < 0 ? (int8_t) 10 + retrievedTen : retrievedTen;
 
-                int8_t retrievedUnit = retrieveUnit(cover2Pointer[j], cover1Pointer[j]); 
+                int8_t retrievedUnit = (int8_t) retrieveUnit(cover2Pointer[j], cover1Pointer[j]);
                 retrievedUnit = retrievedUnit < 0 ? (int8_t) 10 + retrievedUnit : retrievedUnit;
 
                 // Writes in image a retrieved channel
@@ -408,10 +423,16 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
         // encrypt for
         uint32_t line = images[secret].width * images[secret].channels;
         uint64_t imageHeight = images[cover1].height;
+        uint32_t seeds[threads];
+        for (int i = 0; i < threads; ++i){
+            seeds[i] = time(NULL);
+        }
+        // 'firstprivate(seeds)' to Prevent false sharing
+        #pragma omp parallel for num_threads(threads) schedule(static, 1) firstprivate(seeds)
         for (uint32_t i = 0; i < imageHeight; i++){
-            BYTE* cover1Pointer = (BYTE*)FreeImage_GetScanLine(images[cover1].pixelPointer, i);
-            BYTE* cover2Pointer = (BYTE*)FreeImage_GetScanLine(images[cover2].pixelPointer, i);
-            BYTE* secretPointer = (BYTE*)FreeImage_GetScanLine(images[secret].pixelPointer, i);
+            BYTE* cover1Pointer = FreeImage_GetScanLine(images[cover1].pixelPointer, i);
+            BYTE* cover2Pointer = FreeImage_GetScanLine(images[cover2].pixelPointer, i);
+            BYTE* secretPointer = FreeImage_GetScanLine(images[secret].pixelPointer, i);
             for (uint64_t j = 0; j < line; j++){
                 // Reduces the value of channel
                 BYTE reducedChannel = (BYTE) reduce(secretPointer[j]);
@@ -419,9 +440,10 @@ int main(const int argc, const char* argv[], const char* env_var_ptr[]){
                 // Gets ten and unit of secret(Hidden) image
                 BYTE originalUnit = (BYTE) (reducedChannel % 10);
                 BYTE originalTen = (BYTE) (reducedChannel / 10);
+
                 // Generates a ten and unit random number
-                const BYTE randTen = randomUnit;
-                const BYTE randUnit = randomUnit;
+                const BYTE randTen = randomUnit(&seeds[omp_get_thread_num()]);
+                const BYTE randUnit = randomUnit(&seeds[omp_get_thread_num()]);
 
                 BYTE coverPixelHundred = cover1Pointer[j];
                 BYTE coverPixelTen = (BYTE) (10 * ((randTen + originalTen) % 10));
