@@ -21,13 +21,13 @@ $ make
 
 ## Example
 
-# Original images
+### Original images
 
 Sample 1                   | sample 2                  |  Secret sample
 :-------------------------:|:-------------------------:|:-------------------------
 ![](https://user-images.githubusercontent.com/18224386/54292277-a6577c00-458c-11e9-83c1-076c84225296.JPG)| ![](https://user-images.githubusercontent.com/18224386/54292284-a6f01280-458c-11e9-8657-2d8b584efef3.JPG) | ![](https://user-images.githubusercontent.com/18224386/54292275-a5bee580-458c-11e9-9ee6-9b6b98fac831.jpg)
 
-# After 
+### After 
 
 Cover 1                    | Cover 2                   | Secret Image
 :-------------------------:|:-------------------------:|:-------------------------:
